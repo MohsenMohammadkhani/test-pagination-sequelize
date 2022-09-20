@@ -8,11 +8,18 @@ const port = 4000;
 app.get("/data", async (req, res) => {
   const page = parseInt(req.query.page);
   const number = parseInt(req.query.number);
-  const offset = (page - 1) * number;
-
+  const countItems = await getCountItem();
+  const offset = getOffsetPagination(countItems, number, page);
+  let limit = number;
+  if (!offset) {
+    limit = number * page - countItems;
+    if (!limit) {
+      limit = number;
+    }
+  }
   const optionsForFindAndCountAll = {
-    limit: number,
-    offset: offset,
+    limit,
+    offset,
   };
 
   if (req.query.email) {
@@ -23,19 +30,16 @@ app.get("/data", async (req, res) => {
     };
   }
 
-  const { count, rows } = await Model.findAndCountAll(
-    optionsForFindAndCountAll
-  );
+  const rows = await Model.findAll(optionsForFindAndCountAll);
 
-  const countPage = Math.ceil(count / number);
-
-  const data = rows.map((position) => {
+  let data = rows.map((position) => {
     return position.dataValues;
   });
+  data=data.reverse()
 
   const response = {
-    count,
-    countPage,
+    count_items: countItems,
+    count_page: Math.ceil(countItems / number),
     data,
   };
   if (page > 1) {
@@ -49,5 +53,17 @@ app.get("/data", async (req, res) => {
 
   res.send(response);
 });
+
+const getCountItem = async () => {
+  return await Model.count();
+};
+
+const getOffsetPagination = (countItems, countPerPage, currentPage) => {
+  let offset = countItems - countPerPage * currentPage;
+  if (offset < 0) {
+    return 0;
+  }
+  return offset;
+};
 
 app.listen(port);
